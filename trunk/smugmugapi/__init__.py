@@ -1,6 +1,15 @@
 #!/usr/bin/python
 ''' API's to access SmugMug.
-For more information - http://code.google.com/p/smugmug-api/'''
+For more information - http://code.google.com/p/smugmug-api/
+
+Note: These API's have been inspired by the Flickr API's
+
+What next?
+
+1. Support upload 
+2. Add a caching framework to deal with downloaded images
+3. More examples
+'''
 
 import sys
 import urllib
@@ -160,162 +169,6 @@ class SmugMugAPI:
         return "Success"
 
 
-    def upload(self, filename, callback=None, **arg):
-        """Upload a file to flickr.
-
-        Be extra careful you spell the parameters correctly, or you will
-        get a rather cryptic "Invalid Signature" error on the upload!
-
-        Supported parameters:
-
-        filename -- name of a file to upload
-        callback -- method that gets progress reports
-        ByteCount - must match binary byte count
-        MD5Sum - md5 of the file
-        AlbumID - album in which the photo has to be placed
-        ResponseType - either "XML-RPC" or "REST"
-        Caption - self explanatory
-
-
-        The callback method should take two parameters:
-        def callback(progress, done)
-        
-        Progress is a number between 0 and 100, and done is a boolean
-        that's true only when the upload is done.
-        
-        For now, the callback gets a 'done' twice, once for the HTTP
-        headers, once for the body.
-        """
-
-        if not filename:
-            raise IllegalArgumentException("filename must be specified")
-        
-        # verify key names
-        required_params = ('api_key', 'auth_token', 'api_sig')
-        optional_params = ('title', 'description', 'tags', 'is_public', 
-                           'is_friend', 'is_family')
-        possible_args = required_params + optional_params
-        
-        for a in arg.keys():
-            if a not in possible_args:
-                raise IllegalArgumentException("Unknown parameter '%s' sent to FlickrAPI.upload" % a)
-
-        arguments = {'auth_token': self.token, 'api_key': self.apiKey}
-        arguments.update(arg)
-
-        # Convert to UTF-8 if an argument is an Unicode string
-        arg = self.make_utf8(arguments)
-        
-        arg["api_sig"] = self.sign(arg)
-        url = "http://" + FlickrAPI.flickrHost + FlickrAPI.flickrUploadForm
-
-        # construct POST data
-        body = Multipart()
-
-        for a in required_params + optional_params:
-            if a not in arg: continue
-            
-            part = Part({'name': a}, arg[a])
-            body.attach(part)
-
-        filepart = FilePart({'name': 'photo'}, filename, 'image/jpeg')
-        body.attach(filepart)
-
-        return self.send_multipart(url, body, callback)
-
-    def replace(self, filename, photo_id):
-        """Replace an existing photo.
-
-        Supported parameters:
-
-        filename -- name of a file to upload
-        photo_id -- the ID of the photo to replace
-        """
-        
-        if not filename:
-            raise IllegalArgumentException("filename must be specified")
-        if not photo_id:
-            raise IllegalArgumentException("photo_id must be specified")
-
-        args = {'filename': filename,
-                'photo_id': photo_id,
-                'auth_token': self.token,
-                'api_key': self.apiKey}
-
-        args = self.make_utf8(args)
-        args["api_sig"] = self.sign(args)
-        url = "http://" + FlickrAPI.flickrHost + FlickrAPI.flickrReplaceForm
-
-        # construct POST data
-        body = Multipart()
-
-        for arg, value in args.iteritems():
-            # No part for the filename
-            if value == 'filename': continue
-            
-            part = Part({'name': arg}, value)
-            body.attach(part)
-
-        filepart = FilePart({'name': 'photo'}, filename, 'image/jpeg')
-        body.attach(filepart)
-
-        return self.send_multipart(url, body)
-
-    def send_multipart(self, url, body, progress_callback=None):
-        '''Sends a Multipart object to an URL.
-        
-        Returns the resulting XML from Flickr.
-        '''
-
-        LOG.debug("Uploading to %s" % url)
-        request = urllib2.Request(url)
-        request.add_data(str(body))
-        
-        (header, value) = body.header()
-        request.add_header(header, value)
-        
-        if progress_callback:
-            response = reportinghttp.urlopen(request, progress_callback)
-        else:
-            response = urllib2.urlopen(request)
-        rspXML = response.read()
-
-        result = XMLNode.parseXML(rspXML)
-        if self.fail_on_error:
-            FlickrAPI.testFailure(result, True)
-
-        return result
-
-########################################################################
-# Test functionality
-########################################################################
-
-def main():
-    smugmug_api_key = "29qIYnAB9zHcIhmrqhZ7yK7sPsdfoV0e"  # API key
-    
-    # initialize the API
-
-    set_log_level (logging.DEBUG)
-    sapi = SmugMugAPI (smugmug_api_key)
-    # login and create a session
-    result=sapi.login_withPassword (EmailAddress = "", Password = "")
-
-    # now extract the session
-    session_id = result.Login[0].Session[0]["id"]
-    # print list of all albums
-    result = sapi.albums_get(SessionID=session_id)
-
-    # get the first album
-    album_id = result.Albums[0].Album[0]["id"]
-    # print list of all photos in user selected album
-    result=sapi.images_get (SessionID="64d7beceb486536065dbfdc7f666e6a6", AlbumID=album_id)
-
-    image_id = result.Images[0].Image[0]["id"]
-    result=sapi.images_getURLs (SessionID="64d7beceb486536065dbfdc7f666e6a6", ImageID=image_id)
-    # now download the first photo
-    large_url = result.Image[0]["LargeURL"]
-    # implement the necessary urllib commands to download the URL
-    return
 
 def set_log_level(level):
     '''Sets the log level of the logger used by the FlickrAPI module.
@@ -327,7 +180,39 @@ def set_log_level(level):
 
     LOG.setLevel(level)
 
+########################################################################
+# Test functionality
+########################################################################
 
+def main():
+    smugmug_api_key = "29qIYnAB9zHcIhmrqhZ7yK7sPsdfoV0e"  # API key
+    
+    # initialize the API
+    set_log_level (logging.DEBUG)
+    sapi = SmugMugAPI (smugmug_api_key)
+    # login and create a session
+    #result=sapi.login_withPassword (EmailAddress = "<your email>", Password = "<password>")
+    
+    #create an anonymou session
+    result=sapi.login_anonymously ()
+
+    # now extract the session
+    session_id = result.Login[0].Session[0]["id"]
+
+    # use a random album (from moonriverphotography)
+    album_id = "634937"
+
+    # print list of all photos in user selected album
+    result=sapi.images_get (SessionID=session_id, AlbumID=album_id)
+
+    image_id = result.Images[0].Image[0]["id"]
+    result=sapi.images_getURLs (SessionID=session_id, ImageID=image_id)
+    # now download the first photo
+    large_url = result.Image[0]["LargeURL"]
+    
+    print "The first image - %s - of album %s can be accessed here %s" % (image_id, album_id, large_url)
+
+    return
 # run the main if we're not being imported:
 if __name__ == "__main__":
     main()
