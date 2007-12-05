@@ -1,16 +1,23 @@
 #!/bin/python
 
-''' This example will return the URL of a random photograph from a users gallery'''
+''' This example will return the URL of a random image from a users gallery'''
 import smugmugapi as SI
 import sys
 import logging
 import random
+import urllib
+import os
 from parseargs import CLAP
 
-def get_random_photo (sapi, session_id):
+def get_albums (sapi, session_id, nick):
+    # get all the abums
+    result = sapi.users_getTree(SessionID=session_id, NickName=nick)
+    return 
+
+def get_random_image (sapi, session_id):
     # get all the abums
     result = sapi.albums_get(SessionID=session_id)
-        
+
     num_albums = len (result.Albums[0].Album)
     album_id = result.Albums[0].Album[random.randint(0,num_albums -1 )]["id"]
 
@@ -21,7 +28,7 @@ def get_random_photo (sapi, session_id):
     image_id = result.Images[0].Image[random.randint(0,num_images -1)]["id"]
 
     result=sapi.images_getURLs (SessionID=session_id, ImageID=image_id)
-    # now download the first photo
+
     large_url = result.Image[0]["LargeURL"]
 
     return large_url
@@ -29,14 +36,13 @@ def get_random_photo (sapi, session_id):
 def get_most_pop_album (sapi, session_id):
     # get all the abums
     result = sapi.albums_get(SessionID=session_id)
-        
+
 
     album_list = result.Albums[0].Album
     num_albums = len (album_list)
     album_stats={}
-#    for album in result.Albums[0].Album:
-    for i in range (0, num_albums):
-        album = album_list[i]
+
+    for album in album_list:
         result=sapi.albums_getStats (SessionID=session_id, AlbumID=album["id"], Month="1", Year="2007")
         album_stats[album["id"]] = int(result.Album[0]["Medium"])
 
@@ -44,7 +50,24 @@ def get_most_pop_album (sapi, session_id):
     rev_items.sort()
     print rev_items
     print "Most popular album --->", rev_items[0][1]
-    
+
+def download_image (sapi, session_id, image_id, path):
+    result=sapi.images_getURLs (SessionID=session_id, ImageID=image_id)
+    tiny_url = result.Image[0]["TinyURL"]
+
+    urllib.urlretrieve (tiny_url, os.path.join(path, image_id + "-Ti.jpg"))
+    return
+
+def download_album (sapi, session_id, album_id, path):
+    """ download a complete album """
+    result = sapi.albums_get(SessionID=session_id)
+
+    result=sapi.images_get (SessionID=session_id, AlbumID=album_id)
+    num_images = len(result.Images[0].Image)
+    image_list = result.Images[0].Image
+
+    for image in image_list:
+        download_image (sapi, session_id, image["id"], path)
 
     return None
 
@@ -55,20 +78,33 @@ def user_login (sapi, email, password):
     return session_id
 
 def handle_args ():
+    """
+    Example invocations -
+    python smugmug_ops.py -e <email> -p <pasword> -m download_album -a <album_number> -d
+    python smugmug_ops.py -e <email> -p <password> -m random_image
+    """
     args = {
-        ('-e', '--email'):('email', str, None),
+        ('-h', '--help') : ('help', str, None),
+        ('-e', '--email') : ('email', str, None),
         ('-p', '--password'):('password', str, None),
         ('-m', '--mode'):('mode', str, None),
         ('-d', '--debug'):('debug', bool, False),
+        ('-a', '--album'):('album', int, False),
+        ('-o', '--output'):('output', str, "./.tmp"),
+        ('-n', '--nick'):('nick', str, "./.tmp"),
         }
-    apu = CLAP(sys.argv[1:], args, min_args=2)
+
+    help_string = "\n\
+smugmug.py - invalid options : %s\n\
+Try `python smugmug.py --help` for more information\n" % ' '.join(sys.argv[1:])
+
+    apu  = CLAP(sys.argv[1:], args, min_args=2, help_string = help_string)
     args = apu.check_args()
     return args
 
-
 def main ():
     smugmug_api_key = "29qIYnAB9zHcIhmrqhZ7yK7sPsdfoV0e"  # API key
-    
+
     # initialize the API
 
     sapi = SI.SmugMugAPI (smugmug_api_key)
@@ -78,11 +114,15 @@ def main ():
         SI.set_log_level(logging.DEBUG)
 
     session_id = user_login (sapi, args['email'], args['password'])
-    
-    if args["mode"] == "random_photo": # get a random photo
-        print get_random_photo(sapi, session_id)
-    elif args["mode"] == "popalbum": # get the most popular album
-        print get_most_popular_photo(sapi, session_id)
+
+    if args["mode"] == "random_image": # get a random image
+        print get_random_image(sapi, session_id)
+    elif args["mode"] == "pop_album": # get the most popular album
+        print get_most_pop_album(sapi, session_id)
+    elif args["mode"] == "download_album_tiny": # get the most popular album
+        print download_album(sapi, session_id, args["album"], args["output"])
+    elif args["mode"] == "get_albums": # get the most popular album
+        print get_albums(sapi, session_id, args["nick"])
 
     return
 

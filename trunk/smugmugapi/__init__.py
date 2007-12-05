@@ -9,6 +9,8 @@ What next?
 1. Support upload 
 2. Add a caching framework to deal with downloaded images
 3. More examples
+4. Support for keyword based search from feeds
+5. Support for last XX pictures in an album
 '''
 
 import sys
