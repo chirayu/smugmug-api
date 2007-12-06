@@ -7,7 +7,7 @@ import logging
 import random
 import urllib
 import os
-from parseargs import CLAP
+from optparse import OptionParser
 
 def get_albums (sapi, session_id, nick):
     # get all the abums
@@ -77,30 +77,40 @@ def user_login (sapi, email, password):
     session_id = result.Login[0].Session[0]["id"]
     return session_id
 
-def handle_args ():
-    """
-    Example invocations -
-    python smugmug_ops.py -e <email> -p <pasword> -m download_album -a <album_number> -d
-    python smugmug_ops.py -e <email> -p <password> -m random_image
-    """
-    args = {
-        ('-h', '--help') : ('help', str, None),
-        ('-e', '--email') : ('email', str, None),
-        ('-p', '--password'):('password', str, None),
-        ('-m', '--mode'):('mode', str, None),
-        ('-d', '--debug'):('debug', bool, False),
-        ('-a', '--album'):('album', int, False),
-        ('-o', '--output'):('output', str, "./.tmp"),
-        ('-n', '--nick'):('nick', str, "./.tmp"),
-        }
+def init_parser ():
 
-    help_string = "\n\
-smugmug.py - invalid options : %s\n\
-Try `python smugmug.py --help` for more information\n" % ' '.join(sys.argv[1:])
+    parser = OptionParser(usage="%prog -m MODE [-e EMAIL] [-p PASSWORD] [-n NICKNAME] [-o OUTPUTDIR]  [-d]", version="%prog 1.0")
 
-    apu  = CLAP(sys.argv[1:], args, min_args=2, help_string = help_string)
-    args = apu.check_args()
-    return args
+    parser.add_option("-e", "--email",
+                      action="store", type="string", dest="email",
+                      help="XYZ")
+    parser.add_option("-p", "--password",
+                      action="store", type="string", dest="password",
+                      help="XYZ")
+
+    parser.add_option("-m", "--mode",
+                      action="store", type="choice", dest="mode",
+                      choices=["random_image", "pop_album", "download_album_tiny", "get_albums"],
+                      help="Specify one mode: random_image, pop_album, download_album_tiny, get_albums")
+
+    parser.add_option("-d", "--debug",
+                      action="store_true", dest="debug", default=False,
+                      help="Enable debugging [default: %default]")
+
+    parser.add_option("-a", "--album",
+                      action="store", type="int", dest="album",
+                      help="Specify album")
+
+    parser.add_option("-o", "--output",
+                      action="store", type="string", dest="output",
+                      help="Output directory")
+
+    parser.add_option("-n", "--nick",
+                      action="store", type="string", dest="nick",
+                      help="Nickname (only to be used with mode get_albums)")
+
+    return parser
+
 
 def main ():
     smugmug_api_key = "29qIYnAB9zHcIhmrqhZ7yK7sPsdfoV0e"  # API key
@@ -108,21 +118,21 @@ def main ():
     # initialize the API
 
     sapi = SI.SmugMugAPI (smugmug_api_key)
-    args = handle_args()
-
-    if args["debug"]:
+    parser = init_parser()
+    (options, args) = parser.parse_args()
+    if options.debug:
         SI.set_log_level(logging.DEBUG)
 
-    session_id = user_login (sapi, args['email'], args['password'])
+    session_id = user_login (sapi, options.email, options.password)
 
-    if args["mode"] == "random_image": # get a random image
+    if options.mode == "random_image": # get a random image
         print get_random_image(sapi, session_id)
-    elif args["mode"] == "pop_album": # get the most popular album
+    elif options.mode == "pop_album": # get the most popular album
         print get_most_pop_album(sapi, session_id)
-    elif args["mode"] == "download_album_tiny": # get the most popular album
-        print download_album(sapi, session_id, args["album"], args["output"])
-    elif args["mode"] == "get_albums": # get the most popular album
-        print get_albums(sapi, session_id, args["nick"])
+    elif options.mode == "download_album_tiny": # get the most popular album
+        print download_album(sapi, session_id, options.album, options.output)
+    elif options.mode == "get_albums": # get the most popular album
+        print get_albums(sapi, session_id, options.nick)
 
     return
 
