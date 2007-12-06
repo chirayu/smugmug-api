@@ -10,18 +10,15 @@ import os
 from optparse import OptionParser
 
 def get_albums (sapi, session_id, nick):
-    # get all the abums
     result = sapi.users_getTree(SessionID=session_id, NickName=nick)
     return 
 
 def get_random_image (sapi, session_id):
-    # get all the abums
     result = sapi.albums_get(SessionID=session_id)
 
     num_albums = len (result.Albums[0].Album)
     album_id = result.Albums[0].Album[random.randint(0,num_albums -1 )]["id"]
 
-    # Now get all the images in the album
     result=sapi.images_get (SessionID=session_id, AlbumID=album_id)
 
     num_images = len(result.Images[0].Image)
@@ -34,7 +31,6 @@ def get_random_image (sapi, session_id):
     return large_url
 
 def get_most_pop_album (sapi, session_id):
-    # get all the abums
     result = sapi.albums_get(SessionID=session_id)
 
 
@@ -79,7 +75,7 @@ def user_login (sapi, email, password):
 
 def init_parser ():
 
-    parser = OptionParser(usage="%prog -m MODE [-e EMAIL] [-p PASSWORD] [-n NICKNAME] [-o OUTPUTDIR]  [-d]", version="%prog 1.0")
+    parser = OptionParser(usage="%prog -m MODE [-e EMAIL] [-p PASSWORD] [-n NICKNAME] [-o OUTPUTDIR]  [-d]")
 
     parser.add_option("-e", "--email",
                       action="store", type="string", dest="email",
@@ -115,8 +111,6 @@ def init_parser ():
 def main ():
     smugmug_api_key = "29qIYnAB9zHcIhmrqhZ7yK7sPsdfoV0e"  # API key
 
-    # initialize the API
-
     sapi = SI.SmugMugAPI (smugmug_api_key)
     parser = init_parser()
     (options, args) = parser.parse_args()
@@ -125,18 +119,18 @@ def main ():
 
     session_id = user_login (sapi, options.email, options.password)
 
-    if options.mode == "random_image": # get a random image
+    if options.mode == "random_image": 
         print get_random_image(sapi, session_id)
-    elif options.mode == "pop_album": # get the most popular album
+    elif options.mode == "pop_album": 
         print get_most_pop_album(sapi, session_id)
-    elif options.mode == "download_album_tiny": # get the most popular album
+    elif options.mode == "download_album_tiny": 
         print download_album(sapi, session_id, options.album, options.output)
-    elif options.mode == "get_albums": # get the most popular album
+    elif options.mode == "get_albums": 
         print get_albums(sapi, session_id, options.nick)
 
     return
 
-# run the main if we're not being imported:
+# run main if we're not being imported:
 if __name__ == "__main__":
     main()
 
