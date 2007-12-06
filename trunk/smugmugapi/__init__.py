@@ -13,6 +13,28 @@ What next?
 5. Support for last XX pictures in an album
 '''
 
+# Copyright (c) 2007 by the respective coders, see
+# http://flickrapi.sf.net/
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 import sys
 import urllib
 import os.path
@@ -25,7 +47,7 @@ logging.basicConfig()
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 
-__version__ = '0.14'
+__version__ = '0.1'
 __revision__ = '$Revision: 1 $' # TBD: not too sure if Google will substitute the variable
 __all__ = ('SmugMugAPI', 'IllegalArgumentException', 'SmugMugError',
            'XMLNode', 'set_log_level', '__version__', '__revision__')
@@ -64,7 +86,6 @@ class SmugMugAPI:
 
 
     def __init__ (self, api_key, fail_on_error = True):
-        "Create a new flickr instance based on key"
         self.api_key = api_key
         self.fail_on_error = fail_on_error
 
@@ -173,7 +194,7 @@ class SmugMugAPI:
 
 
 def set_log_level(level):
-    '''Sets the log level of the logger used by the FlickrAPI module.
+    '''Sets the log level of the logger.
     
     >>> import smugmugapi
     >>> import logging
