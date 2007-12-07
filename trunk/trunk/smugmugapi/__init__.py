@@ -15,6 +15,7 @@ What next?
 
 # Copyright (c) 2007 by the respective coders, see
 # http://flickrapi.sf.net/
+# http://code.google.com/p/smugmug-api/
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -36,10 +37,11 @@ What next?
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import sys
+import os
+import httplib
 import urllib
-import os.path
 import logging
-import copy
+import md5
 
 from xmlnode import XMLNode
 
@@ -47,10 +49,9 @@ logging.basicConfig()
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 
-__version__ = '0.1'
-__revision__ = '$Revision: 1 $' # TBD: not too sure if Google will substitute the variable
+__version__ = "2"
 __all__ = ('SmugMugAPI', 'IllegalArgumentException', 'SmugMugError',
-           'XMLNode', 'set_log_level', '__version__', '__revision__')
+           'XMLNode', 'set_log_level')
 
 ########################################################################
 # Exceptions
@@ -79,7 +80,7 @@ class SmugMugAPI:
 
     Example sm = SmugMugAPI (apiKey)
     '''
-
+    upload_host = "upload.smugmug.com"
     host = "api.smugmug.com"
     version = "1.2.1"
     rest_path = "/services/api/rest/"
@@ -190,6 +191,98 @@ class SmugMugAPI:
             return rsp.err[0]['msg']
 
         return "Success"
+
+
+# class SmugMugAPI
+
+#   def upload(fname, params={})
+#     base_name = File.basename(fname)
+#     uri = URI.parse("http://upload.smugmug.com/#{base_name}")
+#     image = IO::read(fname)
+
+#     Net::HTTP.start(uri.host, uri.port) do |http|
+#       headers = {
+#         'Content-Type'  => 'image/jpeg',
+#         'Content-Lenth' => image.size.to_s,
+#         'Content-MD5'   => Digest::MD5.hexdigest(image),
+#         'X-Smug-SessionID' => SmugMugAPI.default_params[:SessionID],
+#         'X-Smug-Version'   => SmugMugAPI.api_version,
+#         'X-Smug-ResponseType' => 'REST',
+#         'X-Smug-FileName' => base_name
+#       }
+
+#       adjusted_headers = Hash[*params.map { |k,v| [ "X-Smug-" + SmugMugAPI.camelize(k), v.to_s ] }.flatten ]
+#       headers = headers.merge(adjusted_headers)
+
+#       resp = http.send_request('PUT', uri.request_uri, image, headers)
+#       SmugMugAPI.parse_response(resp)
+#     end
+#   end
+# end
+
+    def upload(self, file_name=None, **arg):
+        """Upload a file to Smugmug
+
+        file_name -- name of a file to upload
+        For all other parameters refer http://smugmug.jot.com/WikiHome/API/Uploading
+
+        The parameter names are header fields by removing the preceding substring "X-Smug-". 
+
+        Hence the parameter for "X-Smug-SessionID" will be
+        SessionID. The parameter for "X-Smug-FileName" will be
+        FileName. And so on...
+        
+        """
+
+        if not file_name:
+            raise IllegalArgumentException("filename must be specified")
+
+        upload_url = 'http://' + os.path.join (self.upload_host, file_name)
+
+        file = open (file_name, "rb")
+        size = os.path.getsize (file_name)
+        hash = md5.new(file.read()).hexdigest()
+        file.seek(0)
+
+        headers = {}
+        headers['Content-Type'] = 'image/jpeg'
+        headers['Content-Length'] = size
+        headers['Content-MD5'] = hash
+        headers['X-Smug-Version'] = self.version
+        headers['X-Smug-ResponseType'] = 'REST'
+
+        # set the other header variables. The user is expected to fill
+        # SessionID etc. I hope order of header fields is not important
+        for a in arg:            
+            headers['X-Smug-%s'%a] = arg[a]
+
+        LOG.debug ("[UPLOAD] URL: %s, headers: %s" % (self.upload_host, headers))
+
+        conn_cls = httplib.HTTPSConnection
+        conn = conn_cls(self.upload_host)
+
+        conn.request('PUT',
+                     '/%s' % file_name,
+                     file.read(),
+                     headers
+                     )
+        response = conn.getresponse()
+        LOG.debug ("Server returns ...(see below)... \n%s" % (response.read(), ))
+
+        return
+
+#         headers['X-Smug-SessionID'] = albumname
+#         headers['X-Smug-AlbumID'] = albumname
+#         headers['X-Smug-ImageID'] = albumname
+#         headers['X-Smug-FileName'] = None
+#         headers['X-Smug-Caption'] = None
+#         headers['X-Smug-Keywords'] = None
+#         headers['X-Smug-Latitude'] = None
+#         headers['X-Smug-Longitude'] = None
+#         headers['X-Smug-Altitude'] = None
+
+
+    
 
 
 

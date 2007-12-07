@@ -9,6 +9,10 @@ import urllib
 import os
 from optparse import OptionParser
 
+def upload_image (sapi, session_id, album_id, file_name):
+    result = sapi.upload(file_name, SessionID=session_id, AlbumID=album_id)
+    return 
+
 def get_albums (sapi, session_id, nick):
     result = sapi.users_getTree(SessionID=session_id, NickName=nick)
     return 
@@ -75,7 +79,11 @@ def user_login (sapi, email, password):
 
 def init_parser ():
 
-    parser = OptionParser(usage="%prog -m MODE [-e EMAIL] [-p PASSWORD] [-n NICKNAME] [-o OUTPUTDIR]  [-d]")
+    # python smugmug_ops.py -e EMAIL -p PASSWORD -m upload_image -a ALBUMID -f IMAGEPATH
+    # python smugmug_ops.py -e EMAIL -p PASSWORD -m random_image -d
+    # python smugmug_ops.py -e EMAIL -p PASSWORD -m get_albums -n NICK -d
+
+    parser = OptionParser(usage="%prog -m MODE [-e EMAIL] [-p PASSWORD] [-n NICKNAME] [-o OUTPUTDIR]  [-d] [-a ALBUMID] [-i IMAGEID] [-f IMAGEPATH]")
 
     parser.add_option("-e", "--email",
                       action="store", type="string", dest="email",
@@ -86,7 +94,7 @@ def init_parser ():
 
     parser.add_option("-m", "--mode",
                       action="store", type="choice", dest="mode",
-                      choices=["random_image", "pop_album", "download_album_tiny", "get_albums"],
+                      choices=["random_image", "pop_album", "download_album_tiny", "get_albums", "upload_image"],
                       help="Specify one mode: random_image, pop_album, download_album_tiny, get_albums")
 
     parser.add_option("-d", "--debug",
@@ -95,7 +103,11 @@ def init_parser ():
 
     parser.add_option("-a", "--album",
                       action="store", type="int", dest="album",
-                      help="Specify album")
+                      help="Specify album id")
+
+    parser.add_option("-f", "--file",
+                      action="store", type="string", dest="file_name",
+                      help="Specify file (absolute path required)")
 
     parser.add_option("-o", "--output",
                       action="store", type="string", dest="output",
@@ -127,6 +139,8 @@ def main ():
         print download_album(sapi, session_id, options.album, options.output)
     elif options.mode == "get_albums": 
         print get_albums(sapi, session_id, options.nick)
+    elif options.mode == "upload_image": 
+        print upload_image(sapi, session_id, options.album, options.file_name)
 
     return
 
