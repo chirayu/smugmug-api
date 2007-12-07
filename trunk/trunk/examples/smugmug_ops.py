@@ -9,6 +9,10 @@ import urllib
 import os
 from optparse import OptionParser
 
+def rotate_image_45 (sapi, session_id, image_id):
+    result = sapi.images_rotate(SessionID=session_id, ImageID=image_id, Degrees = "45")
+    return 
+
 def upload_image (sapi, session_id, album_id, file_name):
     result = sapi.upload(file_name, SessionID=session_id, AlbumID=album_id)
     return 
@@ -94,16 +98,20 @@ def init_parser ():
 
     parser.add_option("-m", "--mode",
                       action="store", type="choice", dest="mode",
-                      choices=["random_image", "pop_album", "download_album_tiny", "get_albums", "upload_image"],
+                      choices=["random_image", "pop_album", "download_album_tiny", "get_albums", "upload_image", "rotate_image_45"],
                       help="Specify one mode: random_image, pop_album, download_album_tiny, get_albums")
 
     parser.add_option("-d", "--debug",
                       action="store_true", dest="debug", default=False,
                       help="Enable debugging [default: %default]")
 
-    parser.add_option("-a", "--album",
-                      action="store", type="int", dest="album",
+    parser.add_option("-a", "--albumid",
+                      action="store", type="int", dest="album_id",
                       help="Specify album id")
+
+    parser.add_option("-i", "--imageid",
+                      action="store", type="int", dest="image_id",
+                      help="Specify image id")
 
     parser.add_option("-f", "--file",
                       action="store", type="string", dest="file_name",
@@ -136,11 +144,13 @@ def main ():
     elif options.mode == "pop_album": 
         print get_most_pop_album(sapi, session_id)
     elif options.mode == "download_album_tiny": 
-        print download_album(sapi, session_id, options.album, options.output)
+        print download_album(sapi, session_id, options.album_id, options.output)
     elif options.mode == "get_albums": 
         print get_albums(sapi, session_id, options.nick)
     elif options.mode == "upload_image": 
-        print upload_image(sapi, session_id, options.album, options.file_name)
+        print upload_image(sapi, session_id, options.album_id, options.file_name)
+    elif options.mode == "rotate_image_45": 
+        print rotate_image_45(sapi, session_id, options.image_id)
 
     return
 
