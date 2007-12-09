@@ -60,7 +60,7 @@ def download_image (sapi, session_id, image_id, path):
     tiny_url = result.Image[0]["TinyURL"]
 
     urllib.urlretrieve (tiny_url, os.path.join(path, image_id + "-Ti.jpg"))
-    return
+
 
 def download_album (sapi, session_id, album_id, path):
     """ download a complete album """
