@@ -115,6 +115,29 @@ class SmugBase (object):
     def delete (cls, session, id):
         raise AttributeError, "This method is undefined"
 
+    def _prepare_for_save (self):
+        if getattr (self, self._primary_key.keys()[0]) == None:
+            raise AttributeError("Mandatory primary_key %s is required." % prop)            
+        
+        args = {}
+        for prop in self._non_null_foreign_keys:
+            if getattr(self, prop) is None:
+                raise AttributeError("Mandatory foreign_key %s is required." % prop)
+            else:
+                args[self._non_null_foreign_keys [prop]["variable"]] = (getattr(self, prop)).id
+
+        for prop in self._null_foreign_keys:
+            if getattr(self, prop) is not None:
+                args[self._null_foreign_keys [prop]["variable"]] = (getattr(self, prop)).id
+            else:
+                args[self._null_foreign_keys [prop]["variable"]] = 0
+
+        for prop in self._readwrite:
+            args [prop] = getattr (self, prop)
+
+        args[self._primary_key ["id"]["variable"]] = self.id
+        return args
+
 #     def __setattr__(self, key, value):
 #         " track changes."
 #         self.modified = True # this flag will be reset when a save/load_properties is performed
@@ -339,28 +362,7 @@ class Album (SmugBase):
     _primary_key = {"id":{"variable":"AlbumID"}} # only one primary key is supported
 
     def save(self):
-
-        if getattr (self, self._primary_key.keys()[0]) == None:
-            raise AttributeError("Mandatory primary_key %s is required." % prop)            
-        
-        args = {}
-        for prop in self._non_null_foreign_keys:
-            if getattr(self, prop) is None:
-                raise AttributeError("Mandatory foreign_key %s is required." % prop)
-            else:
-                args[self._non_null_foreign_keys [prop]["variable"]] = (getattr(self, prop)).id
-
-        for prop in self._null_foreign_keys:
-            if getattr(self, prop) is not None:
-                args[self._null_foreign_keys [prop]["variable"]] = (getattr(self, prop)).id
-            else:
-                args[self._null_foreign_keys [prop]["variable"]] = 0
-
-        for prop in self._readwrite:
-            args [prop] = getattr (self, prop)
-
-        args[self._primary_key ["id"]["variable"]] = self.id
-            
+        args = self._prepare_for_save ()            
         result = self.session.api.albums_changeSettings (**args)
         return
 
@@ -665,23 +667,7 @@ class Image (SmugBase):
         return result.Image[0].attrib
 
     def save(self):
-
-        if getattr (self, self.__class__._primary_key[0]) == None:
-            raise AttributeError("Mandatory primary_key %s is required." % prop)            
-         # check if the non null foreign_keys are input
-        for prop in self._non_null_foreign_keys:
-            if getattr(self, prop) is None:
-                raise AttributeError("Mandatory foreign_key %s is required." % prop)
-
-        args = {}
-        for prop in self._readwrite:
-            args [prop] = getattr (self, prop)
-            
-        # TODO use the var meta data
-        args["ImageID"] = self.id
-        args["SessionID"] = self.session.id
-        args["AlbumID"] = self.album.id
-
+        args = self._prepare_for_save ()            
         result = self.session.api.images_changeSettings (**args)
         return
 
