@@ -6,7 +6,7 @@ Note: These API's have been inspired by the Flickr API's
 
 What next?
 
-1. Support upload 
+1. Support upload progress functionality
 2. Add a caching framework to deal with downloaded images
 3. More examples
 4. Support for keyword based search from feeds
@@ -75,7 +75,7 @@ class SmugMugError(Exception):
 # SmugMug API's
 ########################################################################
 
-class SmugMugAPI:
+class SmugMugAPI (object):
     '''Implements the SmugMug API
 
     Example sm = SmugMugAPI (apiKey)
@@ -132,10 +132,15 @@ class SmugMugAPI:
                 if key in args:
                     del args[key]
 
+            new_args = {}
+            for key in args.iterkeys():
+                if args[key] is not None:
+                    new_args[key] = args [key]
+
             # Step one: Encode the params with fixed position
             postdata_fp = self.encode_and_sign ([("method", method), ("APIKey", self.api_key)])
             # Step 2: Encode the params with variable positions
-            postdata = self.encode_and_sign(args)
+            postdata = self.encode_and_sign(new_args)
 
             postdata = postdata_fp + '&' + postdata
 
