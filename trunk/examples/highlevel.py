@@ -24,6 +24,24 @@ import smugmugapi as SI
 import logging 
 
 ########################################################################
+class LazyLoad (object):
+    def __init__ (self, instance, load_var, load_class, args):
+        # since the lazy load instanc is set in the class, the context
+        # has to be stored outside of the lazyload instance as the
+        # instance will be shared amongst multiple instances of the
+        # class.
+        setattr (instance, '_lazyload_%s'%load_var, {"load_var":load_var, "load_class":load_class, "args":args})
+        self.load_var = load_var # this is the key to access context
+        return
+
+    def __get__(self, inst, obj_type=None):
+        if not hasattr(inst, '_cache_%s'%self.load_var):
+            load_info = getattr (inst, '_lazyload_%s'%self.load_var)
+            setattr (inst, '_cache_%s'%self.load_var, load_info["load_class"].get(**load_info["args"]))
+
+        return getattr (inst, '_cache_%s'%self.load_var)
+
+########################################################################
 class Session (object):
     def __init__ (self, api, email=None, password=None, fail_on_error = True):
         if email is not None and password is not None:
@@ -51,8 +69,8 @@ class SmugBase (object):
             setattr (self, "__"+var, None )                
         for var in self.__class__._readwrite.iterkeys():
             setattr (self, var, None)
-        for var in self.__class__._all_foreign_keys.iterkeys():
-            setattr (self, var, None)
+#         for var in self.__class__._all_foreign_keys.iterkeys():
+#             setattr (self, var, None)
         setattr (self, self.__class__._primary_key[0], None)
             
         # now assign the arguments
@@ -75,8 +93,29 @@ class SmugBase (object):
 
     @classmethod
     def get (cls, session, id):
-        ''' This method is a hack as there is no way to enquire the site statistics '''
         return cls(session=session, id=id)
+
+    @classmethod
+    def get_all (cls, session, id):
+        raise AttributeError, "This method is undefined"
+
+    @classmethod
+    def create (cls, session, id):
+        raise AttributeError, "This method is undefined"
+
+    @classmethod
+    def save (cls, session, id):
+        raise AttributeError, "This method is undefined"
+
+    @classmethod
+    def delete (cls, session, id):
+        raise AttributeError, "This method is undefined"
+
+#     def __setattr__(self, key, value):
+#         " track changes."
+#         self.modified = True # this flag will be reset when a save/load_properties is performed
+#         super(self.__class__, self).__setattr__(key, value)
+
 
 
 ########################################################################
@@ -148,11 +187,8 @@ class Category (SmugBase):
     @classmethod
     def get (cls, session, id):
         ''' This method is a hack as there is no way to enquire the site statistics '''
-        print "-0-0-0-0-0-0"
         category_list = Category.get_all(session)
-        print category_list
         for category in category_list:
-            print category.id, id
             if category.id == id:
                 return category
         raise AttributeError #TBD
@@ -178,10 +214,11 @@ class SubCategory (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
-    _readwrite = {}
+    _readwrite = {'Name':{},}
     _readwrite_vars = _readwrite.keys()
 
-    _non_null_foreign_keys = {'session': {"class": Session, "variable":"SessionID"},}
+    _non_null_foreign_keys = {'session': {"class": Session, "variable":"SessionID"},
+                              'category': {"class": Category, "variable":"CategoryID"},}
     _null_foreign_keys = {}
 
     _all_foreign_keys = _non_null_foreign_keys
@@ -189,6 +226,53 @@ class SubCategory (SmugBase):
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
     _primary_key = ["id"] # only one primary key is supported
+
+
+    @classmethod
+    def get_all (cls, session, category=None, NickName=None, SitePassword=None):
+        try:
+            if category:
+                result = session.api.subcategories_get(SessionID=session.id, Category=category.id,
+                                                       NickName=NickName, SitePassword=SitePassword)
+            else:
+                result = session.api.subcategories_get(SessionID=session.id, 
+                                                       NickName=NickName, SitePassword=SitePassword)
+            
+            subcategory_list = []
+            for subcategory in result.Subcategories[0].Subcategory:
+                if not category:
+                    category = XYZ 
+                subcategory_list.append(SubCategory (session=session, category=category,
+                                                     id=subcategory["id"], Name=subcategory["Name"]))
+            return subcategory_list
+        except:
+            raise
+                                     
+    @classmethod
+    def get (cls, session, id, category, NickName=None, SitePassword=None):
+        ''' This method is a hack as there is no way to enquire the site statistics '''
+        result = session.api.subcategories_get(SessionID=session.id, CategoryID=category.id,
+                                               NickName=NickName, SitePassword=SitePassword)
+        category_list = Category.get_all(session)
+        for category in category_list:
+            if category.id == id:
+                return category
+        raise AttributeError #TBD
+
+    @classmethod
+    def create (cls, session, Name):
+        result = session.api.categories_create (SessionID=session.id, Name=Name)
+        return (Category(session=session, id=id, Name=Name)) # there is no way to fetch the category
+
+    def delete (self):
+        result = session.api.categories_delete (SessionID=self.session.id, CategoryID=self.id)
+        return
+
+    def save (self):
+        ''' Will be mainly used for renames '''
+        result = session.api.categories_rename (SessionID=self.session.id, CategoryID=self.id, Name=self.Name),
+        return
+        
 
 ########################################################################
 class Album (SmugBase):
@@ -243,14 +327,6 @@ class Album (SmugBase):
     _primary_key = ["id"] # only one primary key is supported
 
 
-
-#     def __setattr__(self, key, value):
-# #         if key in self.__class__._readonly_vars:
-# #             raise AttributeError("The attribute %s is read-only." % key)
-# #         else: # not checking if the attribute is present in the other lists. It is too much of an overhead
-#             super(Album, self).__setattr__(key, value)
-
-
     def _load_properties(self):
         """Loads the properties from SmugMug."""
         self.__load_required = False
@@ -302,7 +378,7 @@ class Album (SmugBase):
         
         result = session.api.albums_create (SessionID=session.id, Title=Title, 
                                             CategoryID=category.id)
-        return #TBD
+        return Album.get (session=session, id=result.Album[0]["id"])
     
     @classmethod
     def get_all (cls, session, NickName=None, Heavy=None, SitePassword=None):
@@ -323,19 +399,18 @@ class Album (SmugBase):
             for prop in cls._readonly.iterkeys():
                 setattr (a, prop, result.Album[0][prop])
                 
-            a.category = Category.get (session=a.session, id=result.Album[0].Category[0]["id"])
-            a.subcategory = SubCategory.get (session=a.session, id=result.Album[0].SubCategory[0]["id"])
-            a.highlight = Highlight.get (session=a.session, id=result.Album[0].Highlight[0]["id"])
-            a.community = Community.get (session=a.session, id=result.Album[0].Community[0]["id"])
+            a.__class__.category = LazyLoad (a, "category", Category, {"session":a.session, "id":result.Album[0].Category[0]["id"]})
+#            a.subcategory = SubCategory.get (session=a.session, category=a.category, id=result.Album[0].SubCategory[0]["id"])
+# TBD - uncomment only when the defered get logic is worked out
+#             a.highlight = Highlight.get (session=a.session, id=result.Album[0].Highlight[0]["id"])
+#             a.community = Community.get (session=a.session, id=result.Album[0].Community[0]["id"])
         except:
             raise
         return a
 
-    def def_load (self):
-        self.__load_required == True
-        return
-
     def delete (self):
+        response = self.session.api.albums_delete (SessionID=self.session.id, 
+                                                   AlbumID = self.id)
         return
 
     def resort (self, By, Direction):
@@ -348,7 +423,7 @@ class Album (SmugBase):
         response = self.session.api.albums_getStats (SessionID=self.session.id, 
                                                      AlbumID = self.id, Month=Month, 
                                                      Year=Year, Heavy=Heavy)
-
+        
         reply = {}
         reply["Bytes"] = response.Album[0]["Bytes"]
         reply["Tiny"] = response.Album[0]["Tiny"]
@@ -497,7 +572,7 @@ class User (SmugBase):
     _primary_key = ["id"] # only one primary key is supported
 
 ########################################################################
-class WaterMarks (SmugBase):
+class Watermark (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
@@ -515,32 +590,32 @@ class WaterMarks (SmugBase):
 
 ########################################################################
 class Image (SmugBase):
-    _readonly = {}
+    _readonly = {'Position':{},
+                 'Serial':{},
+                 'Size':{},
+                 'Width':{},
+                 'Height':{},
+                 'LastUpdated':{},
+                 'FileName':{},
+                 'MD5Sum':{},
+                 'Watermark':{},
+                 'Format':{},
+                 'Date':{},
+                 'AlbumURL':{},
+                 'TinyURL':{},
+                 'ThumbURL':{},
+                 'SmallURL':{},
+                 'MediumURL':{},
+                 'LargeURL':{},
+                 'XLargeURL':{},
+                 'X2LargeURL':{},
+                 'X3LargeURL':{},
+                 'OriginalURL':{},
+                 }
     _readonly_vars = _readonly.keys()
 
     _readwrite = {'Caption': {},
-                  'Position':{},
-                  'Serial':{},
-                  'Size':{},
-                  'Width':{},
-                  'Height':{},
-                  'LastUpdated':{},
-                  'FileName':{},
-                  'MD5Sum':{},
-                  'Watermark':{},
-                  'Format':{},
                   'Keywords':{},
-                  'Date':{},
-                  'AlbumURL':{},
-                  'TinyURL':{},
-                  'ThumbURL':{},
-                  'SmallURL':{},
-                  'MediumURL':{},
-                  'LargeURL':{},
-                  'XLargeURL':{},
-                  'X2LargeURL':{},
-                  'X3LargeURL':{},
-                  'OriginalURL':{},
                   }
     _readwrite_vars = _readwrite.keys()
 
@@ -554,15 +629,110 @@ class Image (SmugBase):
 
     _primary_key = ["id"] # only one primary key is supported
 
+    @classmethod
+    def get_all (cls, session, album, Heavy=None, Password=None, SitePassword=None):
+
+        result = session.api.images_get(SessionID=session.id, AlbumID=album.id,
+                                            Heavy=Heavy, Password=Password,
+                                            SitePassword=SitePassword)
+
+        image_list = []
+        for image in result.Images[0].Image:
+            image_list.append(Image (session = session, id=image["id"]))
+
+        return image_list
+
+    @classmethod
+    def get (cls, id, Password=None, SitePassword=None):
+        
+        result = session.api.images_getInfo(SessionID=session.id, ImageID=id,
+                                            Password=Password,
+                                            SitePassword=SitePassword)
+        image = Image (session=session, id=id)
+
+        for prop in cls._readwrite.iterkeys():
+            setattr (a, prop, result.Image[0][prop])
+        for prop in cls._readonly.iterkeys():
+            setattr (a, prop, result.Image[0][prop])
+
+        image.album = Album.get(session=image.session, id=result.Image[0].Album[0]["id"])
+        return image
+
+    def getEXIF (self, id, Password=None, SitePassword=None):
+        result = self.session.api.images_getEXIF (SessionID=self.session.id, ImageID=self.id,
+                                                  Password = Password, SitePassword = SitePassword)
+        return result.Image[0].attrib
+
+    def save(self):
+
+        if getattr (self, self.__class__._primary_key[0]) == None:
+            raise AttributeError("Mandatory primary_key %s is required." % prop)            
+         # check if the non null foreign_keys are input
+        for prop in self._non_null_foreign_keys:
+            if getattr(self, prop) is None:
+                raise AttributeError("Mandatory foreign_key %s is required." % prop)
+
+        args = {}
+        for prop in self._readwrite:
+            args [prop] = getattr (self, prop)
+            
+        # TODO use the var meta data
+        args["ImageID"] = self.id
+        args["SessionID"] = self.session.id
+        args["AlbumID"] = self.album.id
+
+        result = self.session.api.images_changeSettings (**args)
+        return
+
 ########################################################################
 class AlbumTemplates (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
-    _readwrite = {}
+    _readwrite = {"AlbumTemplateName" : {},
+                  "SortMethod" : {},
+                  "SortDirection" : {},
+                  "Public" : {},
+                  "Password" : {},
+                  "PasswordHint" : {},
+                  "Printable" : {},
+                  "Filenames" : {},
+                  "Comments" : {},
+                  "External" : {},
+                  "Originals" : {},
+                  "EXIF" : {},
+                  "Share" : {},
+                  "Header" : {},
+                  "Larges" : {},
+                  "XLarges" : {},
+                  "X2Larges" : {},
+                  "X3Larges" : {},
+                  "Clean" : {},
+                  "Protected" : {},
+                  "Watermarking" : {},
+                  "FamilyEdit" : {},
+                  "FriendEdit" : {},
+                  "HideOwner" : {},
+                  "DefaultColor" : {},
+                  "Geography" : {},
+                  "CanRank" : {},
+                  "ProofDays" : {},
+                  "Backprinting" : {},
+                  "SmugSearchable" : {},
+                  "UnsharpAmount" : {},
+                  "UnsharpRadius" : {},
+                  "UnsharpThreshold" : {},
+                  "UnsharpSigma" : {},
+                  "WorldSearchable" : {},
+                  }
     _readwrite_vars = _readwrite.keys()
 
-    _non_null_foreign_keys = {}
+    _non_null_foreign_keys ={'session': {"class": Session, "variable":"SessionID"},
+                             'highlight': {"class": Highlight, "variable":"HighlightID"},
+#                             'template': {"class": Template, "variable":"TemplateID"},
+                             'community': {"class": Community, "variable":"CommunityID"},
+                             'watermark': {"class": Watermark, "variable":"WatermarkID"},
+                             }
     _null_foreign_keys = {}
 
     _all_foreign_keys = _non_null_foreign_keys
@@ -577,9 +747,18 @@ def main ():
     
     session = Session (SI.SmugMugAPI("29qIYnAB9zHcIhmrqhZ7yK7sPsdfoV0e"), email = '', password = '')
 
-    print [Album (session=session, id=10), Album (session=session, id=11)]
+    # Image tests #######################
+    album = Album.get (session=session, id=3914389)
+    print "Enter a key to view the category"
+    raw_input()
+    print album.category
 
+    image_list = Image.get_all (session=session, album=album)
+
+
+    # Album tests #######################
     # get the test album
+    print "------------------------------------------------------------------------------------------------"
     album = Album.get (session=session, id=3914389)
     print album.Position
     import random
@@ -587,11 +766,16 @@ def main ():
     album.save()
     print album.get_statistics (1,2007)
 
+    print "------------------------------------------------------------------------------------------------"
     new_album = Album.create (session, "This is a test", album.category)
-
+    print "Enter a key to delete the created album"
+    raw_input()
+    new_album.delete()
     # Get album list
+    print "------------------------------------------------------------------------------------------------"
     album_list = Album.get_all(session)
-    print album_list
+    print "------------------------------------------------------------------------------------------------"
+
 
 # run main if we're not being imported:
 if __name__ == "__main__":
