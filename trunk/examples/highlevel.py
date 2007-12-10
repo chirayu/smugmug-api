@@ -37,8 +37,12 @@ class LazyLoad (object):
     def __get__(self, inst, obj_type=None):
         if not hasattr(inst, '_cache_%s'%self.load_var):
             load_info = getattr (inst, '_lazyload_%s'%self.load_var)
-            setattr (inst, '_cache_%s'%self.load_var, load_info["load_class"].get(**load_info["args"]))
-
+            print load_info
+            try:
+                actual_instance = load_info["load_class"].get(**load_info["args"])
+            except SI.SmugMugError:
+                actual_instance = None
+            setattr (inst, '_cache_%s'%self.load_var, actual_instance)
         return getattr (inst, '_cache_%s'%self.load_var)
 
 ########################################################################
@@ -71,7 +75,7 @@ class SmugBase (object):
             setattr (self, var, None)
 #         for var in self.__class__._all_foreign_keys.iterkeys():
 #             setattr (self, var, None)
-        setattr (self, self.__class__._primary_key[0], None)
+        setattr (self, self.__class__._primary_key.keys()[0], None)  # at the moment only one primary key is supported
             
         # now assign the arguments
         for a in args.iterkeys():
@@ -81,19 +85,19 @@ class SmugBase (object):
                 setattr (self, a, args[a])
             elif a in self.__class__._all_foreign_keys_vars:
                 setattr (self, a, args[a])
-            elif a in self.__class__._primary_key[0]:
+            elif a in self.__class__._primary_key.keys():
                 setattr (self, a, args[a])
             else:
                 raise AttributeError("The attribute %s is unknown." % a)
         return
 
     def __repr__ (self):
-        return "%s : %s" % (self.__class__.__name__, getattr (self, self.__class__._primary_key[0]))
+        return "%s : %s" % (self.__class__.__name__, getattr (self, self.__class__._primary_key.keys()[0]))
     __str__ = __repr__
 
     @classmethod
-    def get (cls, session, id):
-        return cls(session=session, id=id)
+    def get (cls, session, args):
+        raise AttributeError, "This method is undefined"
 
     @classmethod
     def get_all (cls, session, id):
@@ -117,7 +121,8 @@ class SmugBase (object):
 #         super(self.__class__, self).__setattr__(key, value)
 
 
-
+class Category (object):
+    pass
 ########################################################################
 class Highlight (SmugBase):
     _readonly = {}
@@ -126,15 +131,19 @@ class Highlight (SmugBase):
     _readwrite = {}
     _readwrite_vars = _readwrite.keys()
 
-    _non_null_foreign_keys = {'session': {"class": Session, "variable":"SessionID"},}
+    _non_null_foreign_keys = {'session': {"class": Session, "variable":"SessionID"},
+                              'category': {"class": Category, "variable":"CategoryID"},}
     _null_foreign_keys = {}
 
     _all_foreign_keys = _non_null_foreign_keys
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"HighlightID"}} 
 
+    @classmethod
+    def get (cls, session, category, id):
+        return None
 
 ########################################################################
 class Community (SmugBase):
@@ -151,8 +160,11 @@ class Community (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"CommunityID"}} 
 
+    @classmethod
+    def get (cls, session, id):
+        return None
 
 ########################################################################
 class Category (SmugBase):
@@ -169,7 +181,7 @@ class Category (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"CategoryID"}} 
 
     @classmethod
     def get_all (cls, session, NickName=None, SitePassword=None):
@@ -225,7 +237,7 @@ class SubCategory (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"SubCategoryID"}} 
 
 
     @classmethod
@@ -253,12 +265,13 @@ class SubCategory (SmugBase):
         ''' This method is a hack as there is no way to enquire the site statistics '''
         result = session.api.subcategories_get(SessionID=session.id, CategoryID=category.id,
                                                NickName=NickName, SitePassword=SitePassword)
-        category_list = Category.get_all(session)
-        for category in category_list:
-            if category.id == id:
-                return category
-        raise AttributeError #TBD
-
+        sub_category = SubCategory (session=session, id=id, category=category)
+        for prop in cls._readwrite.iterkeys():
+            setattr (sub_category, prop, result.Album[0][prop])
+        for prop in cls._readonly.iterkeys():
+            setattr (sub_category, prop, result.Album[0][prop])
+        return (sub_category)
+            
     @classmethod
     def create (cls, session, Name):
         result = session.api.categories_create (SessionID=session.id, Name=Name)
@@ -323,53 +336,31 @@ class Album (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
+    _primary_key = {"id":{"variable":"AlbumID"}} # only one primary key is supported
 
-    _primary_key = ["id"] # only one primary key is supported
-
-
-    def _load_properties(self):
-        """Loads the properties from SmugMug."""
-        self.__load_required = False
-        try:
-            result = self.session.api.albums_getInfo(SessionID=self.session.id, AlbumID=self.id)
-            for prop in self._readwrite.iterkeys():
-                setattr (self, prop, result.Album[0][prop])
-            for prop in self._readonly.iterkeys():
-                setattr (self, prop, result.Album[0][prop])
-            for prop in self._all_foreign_keys.iterkeys():
-                setattr (self, prop, result.Album[0][prop])
-                
-            # now set the foreign keys
-#             self.category = Category (self.session, result.Album[0].Category[0]["id"])
-#             self.subcategory = SubCategory (self.session, self.category, result.Album[0].SubCategory[0]["id"])
-#             self.highlight = Highlight (self.session, result.Album[0].Highlight[0]["id"])
-#             self.community = Community (self.session, result.Album[0].Community[0]["id"])
-        except:
-            self.__load_required = True
-            raise
-        return
-                
     def save(self):
 
-        if getattr (self, self.__class__._primary_key[0]) == None:
+        if getattr (self, self._primary_key.keys()[0]) == None:
             raise AttributeError("Mandatory primary_key %s is required." % prop)            
-         # check if the non null foreign_keys are input
+        
+        args = {}
         for prop in self._non_null_foreign_keys:
             if getattr(self, prop) is None:
                 raise AttributeError("Mandatory foreign_key %s is required." % prop)
+            else:
+                args[self._non_null_foreign_keys [prop]["variable"]] = (getattr(self, prop)).id
 
-        args = {}
+        for prop in self._null_foreign_keys:
+            if getattr(self, prop) is not None:
+                args[self._null_foreign_keys [prop]["variable"]] = (getattr(self, prop)).id
+            else:
+                args[self._null_foreign_keys [prop]["variable"]] = 0
+
         for prop in self._readwrite:
             args [prop] = getattr (self, prop)
-            
-        # TODO use the var meta data
-        args["AlbumID"] = self.id
-        args["SessionID"] = self.session.id
-        args["CategoryID"] = self.category.id
-        args["SubCategoryID"] = self.subcategory.id
-        args["CommunityID"] = self.community.id
-        args["HighlightID"] = self.highlight.id
 
+        args[self._primary_key ["id"]["variable"]] = self.id
+            
         result = self.session.api.albums_changeSettings (**args)
         return
 
@@ -399,11 +390,14 @@ class Album (SmugBase):
             for prop in cls._readonly.iterkeys():
                 setattr (a, prop, result.Album[0][prop])
                 
-            a.__class__.category = LazyLoad (a, "category", Category, {"session":a.session, "id":result.Album[0].Category[0]["id"]})
-#            a.subcategory = SubCategory.get (session=a.session, category=a.category, id=result.Album[0].SubCategory[0]["id"])
-# TBD - uncomment only when the defered get logic is worked out
-#             a.highlight = Highlight.get (session=a.session, id=result.Album[0].Highlight[0]["id"])
-#             a.community = Community.get (session=a.session, id=result.Album[0].Community[0]["id"])
+            a.__class__.category = LazyLoad (a, "category", Category, {"session":a.session, 
+                                                                       "id":result.Album[0].Category[0]["id"]})
+            a.__class__.subcategory = LazyLoad (a, "subcategory", SubCategory, {"session":a.session, "category":a.category, 
+                                                                                "id":result.Album[0].SubCategory[0]["id"]})
+            a.__class__.highlight = LazyLoad (a, "highlight", Highlight, {"session":a.session, "category":a.category, 
+                                                                          "id":result.Album[0].Highlight[0]["id"]})
+            a.__class__.community = LazyLoad (a, "community", Community, {"session":a.session, 
+                                                                          "id":result.Album[0].Community[0]["id"]})
         except:
             raise
         return a
@@ -450,10 +444,11 @@ class Family (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"FamilyID"}} 
+
 
 ########################################################################        
-class Friends (SmugBase):
+class Friend (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
@@ -467,10 +462,11 @@ class Friends (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"FriendID"}} 
+
 
 ########################################################################
-class Orders (SmugBase):
+class Order (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
@@ -484,7 +480,8 @@ class Orders (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"OrderID"}} 
+
 
 ########################################################################
 class PropPricing (SmugBase):
@@ -501,10 +498,11 @@ class PropPricing (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"PropPricingID"}} 
+
 
 ########################################################################
-class Styles (SmugBase):
+class Style (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
@@ -518,10 +516,10 @@ class Styles (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"StyleID"}} 
 
 ########################################################################
-class ShareGroups (SmugBase):
+class ShareGroup (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
@@ -535,10 +533,11 @@ class ShareGroups (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"SharegroupID"}} 
+
 
 ########################################################################
-class Themes (SmugBase):
+class Theme (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
@@ -552,7 +551,7 @@ class Themes (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"ThemeID"}} 
 
 ########################################################################
 class User (SmugBase):
@@ -569,7 +568,8 @@ class User (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"UserID"}}
+
 
 ########################################################################
 class Watermark (SmugBase):
@@ -586,7 +586,8 @@ class Watermark (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"WatermarkID"}}
+
 
 ########################################################################
 class Image (SmugBase):
@@ -627,7 +628,7 @@ class Image (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"ImageID"}}
 
     @classmethod
     def get_all (cls, session, album, Heavy=None, Password=None, SitePassword=None):
@@ -685,7 +686,7 @@ class Image (SmugBase):
         return
 
 ########################################################################
-class AlbumTemplates (SmugBase):
+class AlbumTemplate (SmugBase):
     _readonly = {}
     _readonly_vars = _readonly.keys()
 
@@ -739,7 +740,7 @@ class AlbumTemplates (SmugBase):
     _all_foreign_keys.update(_non_null_foreign_keys)    
     _all_foreign_keys_vars = _all_foreign_keys.keys()
 
-    _primary_key = ["id"] # only one primary key is supported
+    _primary_key = {"id":{"variable":"AlbumTemplateID"}}
         
 
 
@@ -747,12 +748,23 @@ def main ():
     
     session = Session (SI.SmugMugAPI("29qIYnAB9zHcIhmrqhZ7yK7sPsdfoV0e"), email = '', password = '')
 
+    print "------------------------------------------------------------------------------------------------"
+    album = Album.get (session=session, id=3914389)
+    print album.Position
+    import random
+    album.Title = "dXYXYXYXYXYwYsd" + str (random.randint(1,1000000))
+    album.save()
+    print album.get_statistics (1,2007)
+
+
+    print "------------------------------------------------------------------------------------------------"
     # Image tests #######################
     album = Album.get (session=session, id=3914389)
     print "Enter a key to view the category"
     raw_input()
     print album.category
 
+    print "------------------------------------------------------------------------------------------------"
     image_list = Image.get_all (session=session, album=album)
 
 
@@ -767,6 +779,7 @@ def main ():
     print album.get_statistics (1,2007)
 
     print "------------------------------------------------------------------------------------------------"
+    album = Album.get (session=session, id=3914389)
     new_album = Album.create (session, "This is a test", album.category)
     print "Enter a key to delete the created album"
     raw_input()
