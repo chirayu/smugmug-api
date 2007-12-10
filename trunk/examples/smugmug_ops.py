@@ -54,13 +54,14 @@ def get_most_pop_album (sapi, session_id):
     rev_items.sort()
     print rev_items
     print "Most popular album --->", rev_items[0][1]
+    return rev_items[0][1]
 
 def download_image (sapi, session_id, image_id, path):
     result=sapi.images_getURLs (SessionID=session_id, ImageID=image_id)
     tiny_url = result.Image[0]["TinyURL"]
 
     urllib.urlretrieve (tiny_url, os.path.join(path, image_id + "-Ti.jpg"))
-
+    
 
 def download_album (sapi, session_id, album_id, path):
     """ download a complete album """
