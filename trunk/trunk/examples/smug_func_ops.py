@@ -56,6 +56,16 @@ def get_most_pop_album (sapi, session_id):
     print "Most popular album --->", rev_items[0][1]
     return rev_items[0][1]
 
+def get_album_details (sapi, session_id, album_id):
+    result=sapi.albums_getInfo (SessionID=session_id, AlbumID=album_id)
+    return result.Album[0].Title
+
+
+def get_image (sapi, session_id, image_id):
+    result=sapi.images_getURLs (SessionID=session_id, ImageID=image_id)
+    tiny_url = result.Image[0]["TinyURL"]
+    return result
+
 def download_image (sapi, session_id, image_id, path):
     result=sapi.images_getURLs (SessionID=session_id, ImageID=image_id)
     tiny_url = result.Image[0]["TinyURL"]
@@ -82,6 +92,13 @@ def user_login (sapi, email, password):
     session_id = result.Login[0].Session[0]["id"]
     return session_id
 
+def anon_login (sapi):
+    ''' create a session for the specified user'''
+    result=sapi.login_anonymously ()
+    session_id = result.Login[0].Session[0]["id"]
+    print session_id
+    return session_id
+
 def init_parser ():
 
     # python smugmug_ops.py -e EMAIL -p PASSWORD -m upload_image -a ALBUMID -f IMAGEPATH
@@ -99,7 +116,7 @@ def init_parser ():
 
     parser.add_option("-m", "--mode",
                       action="store", type="choice", dest="mode",
-                      choices=["random_image", "pop_album", "download_album_tiny", "get_albums", "upload_image", "rotate_image_45"],
+                      choices=["random_image", "pop_album", "download_album_tiny", "get_albums", "upload_image", "rotate_image_45", "find_image", "album_details"],
                       help="Specify one mode: random_image, pop_album, download_album_tiny, get_albums")
 
     parser.add_option("-d", "--debug",
@@ -126,6 +143,7 @@ def init_parser ():
                       action="store", type="string", dest="nick",
                       help="Nickname (only to be used with mode get_albums)")
 
+
     return parser
 
 
@@ -139,6 +157,7 @@ def main ():
         SI.set_log_level(logging.DEBUG)
 
     session_id = user_login (sapi, options.email, options.password)
+    #session_id = anon_login (sapi) # add command line option to support anon logins
 
     if options.mode == "random_image": 
         print get_random_image(sapi, session_id)
@@ -152,6 +171,10 @@ def main ():
         print upload_image(sapi, session_id, options.album_id, options.file_name)
     elif options.mode == "rotate_image_45": 
         print rotate_image_45(sapi, session_id, options.image_id)
+    elif options.mode == "find_image": 
+        print get_image (sapi, session_id, options.image_id)
+    elif options.mode == "album_details": 
+        print get_album_details (sapi, session_id, options.album_id)
 
     return
 
