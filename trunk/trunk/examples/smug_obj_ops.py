@@ -42,7 +42,9 @@ def main ():
     # this is just a crude test. Actual examples will be added later (TBD)
     session = Session (SI.SmugMugAPI("29qIYnAB9zHcIhmrqhZ7yK7sPsdfoV0e"), options.email, options.password, options.debug)
 
-    print "------------------------------------------------------------------------------------------------"
+    print "All tests work only with my login at the moment. They will fail on other logins"
+
+    print "Testing Album save()..."
     album = Album.get (session=session, id=3914389)
     print album.Position
     import random
@@ -51,20 +53,20 @@ def main ():
     print album.get_statistics (1,2007)
 
 
-    print "------------------------------------------------------------------------------------------------"
+    print "Testing ORM functionality..accessing category object from an album object..."
     # Image tests #######################
     album = Album.get (session=session, id=3914389)
     print "Enter a key to view the category"
     raw_input()
     print album.category
 
-    print "------------------------------------------------------------------------------------------------"
+    print "Testing : Fetching all images"
     image_list = Image.get_all (session=session, album=album)
 
 
     # Album tests #######################
     # get the test album
-    print "------------------------------------------------------------------------------------------------"
+    print "Testing : Fetch album statistics..."
     album = Album.get (session=session, id=3914389)
     print album.Position
     import random
@@ -72,17 +74,14 @@ def main ():
     album.save()
     print album.get_statistics (1,2007)
 
-    print "------------------------------------------------------------------------------------------------"
     album = Album.get (session=session, id=3914389)
     new_album = Album.create (session, "This is a test", album.category)
     print "Enter a key to delete the created album"
     raw_input()
     new_album.delete()
     # Get album list
-    print "------------------------------------------------------------------------------------------------"
+    print "Testing : Fetch all albums"
     album_list = Album.get_all(session)
-    print "------------------------------------------------------------------------------------------------"
-
     return
 
 # run main if we're not being imported:
