@@ -116,7 +116,7 @@ class SmugMugAPI (object):
 
         if self.__handlerCache.has_key(method):
             # If we already have the handler, return it
-            return self.__handlerCache.has_key(method)
+            return self.__handlerCache[method]
 
         # Construct the method name and URL
         method = "smugmug." + method.replace("_", ".")
